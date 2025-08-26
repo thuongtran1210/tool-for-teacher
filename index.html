@@ -1,215 +1,297 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Sheets CRUD — Static + Tailwind</title>
-
-  <!-- Tailwind CDN -->
+  <title>Student App • GAS + Sheets</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter','ui-sans-serif','system-ui'] }
-        }
-      }
-    }
-  </script>
-  <style> body { font-family: Inter, ui-sans-serif, system-ui; } </style>
-
-  <script>
-    // ==== ĐIỀN URL Web App GAS của bạn: ====
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxzBJYmqMVa75OzBrTOTQeRtoK9aPYevGQjvSkoXy9lzcmisEOd00Qi_2udemy-07WD/exec";
-
-    // ===== Helpers =====
-    const $ = (sel) => document.querySelector(sel);
-    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-    const toast = (msg, type='info') => {
-      const el = $('#toast'); el.textContent = msg;
-      el.className = `fixed top-4 right-4 px-4 py-2 rounded-md shadow text-white transition
-        ${type==='error'?'bg-red-600':'bg-emerald-600'}`;
-      el.style.opacity = 1;
-      setTimeout(()=> el.style.opacity = 0, 2200);
-    };
-
-    // ===== API calls =====
-    async function apiList() {
-      const r = await fetch(`${GAS_URL}?action=list`, { method:'GET' });
-      return r.json();
-    }
-    async function apiCreate(payload) {
-      const r = await fetch(GAS_URL, {
-        method:'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action:'create', ...payload })
-      });
-      return r.json();
-    }
-    async function apiUpdate(payload) {
-      const r = await fetch(GAS_URL, {
-        method:'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action:'update', ...payload })
-      });
-      return r.json();
-    }
-    async function apiDelete(id) {
-      const r = await fetch(GAS_URL, {
-        method:'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action:'delete', id })
-      });
-      return r.json();
-    }
-    async function apiSearch(q) {
-      const r = await fetch(`${GAS_URL}?action=search&q=${encodeURIComponent(q)}`);
-      return r.json();
-    }
-
-    // ===== UI Logic =====
-    async function refreshList(q = '') {
-      $('#loading').classList.remove('hidden');
-      try {
-        const data = q ? await apiSearch(q) : await apiList();
-        const rows = (data.data || []);
-        const tbody = $('#tbody');
-        tbody.innerHTML = rows.map(r => `
-          <tr class="border-b last:border-0">
-            <td class="px-3 py-2 text-sm text-gray-600">${r.id}</td>
-            <td class="px-3 py-2">
-              <input type="text" value="${escapeHtml(r.name)}" 
-                     class="w-full border rounded-md px-2 py-1 text-sm"
-                     data-field="name" data-id="${r.id}">
-            </td>
-            <td class="px-3 py-2">
-              <input type="text" value="${escapeHtml(r.note)}" 
-                     class="w-full border rounded-md px-2 py-1 text-sm"
-                     data-field="note" data-id="${r.id}">
-            </td>
-            <td class="px-3 py-2 text-xs text-gray-500">${r.updatedAt || ''}</td>
-            <td class="px-3 py-2 text-right">
-              <button class="px-3 py-1 bg-emerald-600 text-white rounded-md text-sm"
-                      onclick="onSave(${r.id})">Lưu</button>
-              <button class="ml-2 px-3 py-1 bg-red-600 text-white rounded-md text-sm"
-                      onclick="onDelete(${r.id})">Xóa</button>
-            </td>
-          </tr>
-        `).join('');
-        $('#count').textContent = rows.length;
-      } catch (e) {
-        console.error(e); toast('Lỗi tải dữ liệu', 'error');
-      } finally {
-        $('#loading').classList.add('hidden');
-      }
-    }
-
-    function escapeHtml(s='') {
-      return String(s).replace(/[&<>"']/g, m => ({
-        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-      }[m]));
-    }
-
-    async function onCreate(e) {
-      e.preventDefault();
-      const name = $('#name').value.trim();
-      const note = $('#note').value.trim();
-      if (!name) { toast('Vui lòng nhập tên','error'); return; }
-      const res = await apiCreate({ name, note });
-      if (res.success) {
-        $('#name').value = ''; $('#note').value = '';
-        toast('Đã thêm bản ghi');
-        refreshList($('#search').value.trim());
-      } else toast(res.message || 'Không thể tạo', 'error');
-    }
-
-    async function onSave(id) {
-      const name = $(`input[data-field="name"][data-id="${id}"]`).value.trim();
-      const note = $(`input[data-field="note"][data-id="${id}"]`).value.trim();
-      const res = await apiUpdate({ id, name, note });
-      if (res.success) {
-        toast('Đã lưu');
-        refreshList($('#search').value.trim());
-      } else toast(res.message || 'Không thể lưu', 'error');
-    }
-
-    async function onDelete(id) {
-      if (!confirm(`Xóa bản ghi #${id}?`)) return;
-      const res = await apiDelete(id);
-      if (res.success) {
-        toast('Đã xóa');
-        refreshList($('#search').value.trim());
-      } else toast(res.message || 'Không thể xóa', 'error');
-    }
-
-    let searchDebounce;
-    function onSearchInput() {
-      clearTimeout(searchDebounce);
-      searchDebounce = setTimeout(() => {
-        const q = $('#search').value.trim();
-        refreshList(q);
-      }, 300);
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      refreshList();
-      $('#createForm').addEventListener('submit', onCreate);
-      $('#search').addEventListener('input', onSearchInput);
-    });
-  </script>
+  <style> body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, sans-serif; } </style>
 </head>
+<body class="bg-gray-100 p-6">
+  <div class="max-w-4xl mx-auto bg-white rounded-xl shadow p-6 space-y-6">
+    <h1 class="text-2xl font-bold">Student App → Google Sheet</h1>
 
-<body class="bg-gray-50 min-h-screen">
-  <div id="toast" style="opacity:0"></div>
+    <script>
+      // === GAS_URL TẠM (hãy thay bằng URL của bạn) ===
+      const GAS_URL = "https://script.google.com/macros/s/AKfycbx_DEMO_PLACEHOLDER/exec";
+    </script>
 
-  <div class="max-w-5xl mx-auto p-4 sm:p-6">
-    <header class="mb-6 flex items-center justify-between gap-3">
-      <h1 class="text-2xl sm:text-3xl font-bold">Google Sheets CRUD (Static + Tailwind)</h1>
-      <a class="text-xs text-gray-500 underline" target="_blank" rel="noreferrer"
-         href="https://script.google.com/">Apps Script</a>
-    </header>
-
-    <!-- Create -->
-    <form id="createForm" class="bg-white rounded-xl shadow p-4 sm:p-5 border border-gray-200 mb-5">
-      <div class="flex flex-col sm:flex-row gap-3">
-        <input id="name" placeholder="Tên" class="flex-1 border rounded-md px-3 py-2" />
-        <input id="note" placeholder="Ghi chú" class="flex-1 border rounded-md px-3 py-2" />
-        <button class="px-4 py-2 bg-blue-600 text-white rounded-md">Thêm</button>
+    <!-- AUTH PANEL -->
+    <section class="space-y-4 border rounded-lg p-4">
+      <h2 class="text-xl font-semibold">Đăng nhập bằng mã (teacher/manager)</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm mb-1">Mã (code)</label>
+          <input id="codeInput" class="w-full border rounded px-3 py-2" placeholder="TEA-1A2B">
+        </div>
+        <div>
+          <label class="block text-sm mb-1">Email</label>
+          <input id="emailInput" class="w-full border rounded px-3 py-2" placeholder="you@example.com">
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm mb-1">Tên hiển thị</label>
+          <input id="displayNameInput" class="w-full border rounded px-3 py-2" placeholder="Nguyễn Văn A (tùy chọn)">
+        </div>
       </div>
-      <p class="text-xs text-gray-500 mt-2">
-        Thay GAS_URL ở phần &lt;script&gt; để kết nối Web App của bạn.
-      </p>
-    </form>
-
-    <!-- Toolbar -->
-    <div class="flex items-center justify-between mb-2">
-      <div class="flex items-center gap-2">
-        <input id="search" placeholder="Tìm theo tên/ghi chú…" 
-               class="border rounded-md px-3 py-2 w-64 max-w-full" />
-        <span id="loading" class="hidden text-sm text-gray-500">Đang tải…</span>
+      <div class="flex items-center gap-3">
+        <button id="btnLogin" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Đăng nhập</button>
+        <span id="authMsg" class="text-sm"></span>
       </div>
-      <div class="text-sm text-gray-600">Số bản ghi: <span id="count">0</span></div>
-    </div>
 
-    <!-- Table -->
-    <div class="bg-white rounded-xl shadow border border-gray-200 overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead class="bg-gray-100 text-gray-700">
-          <tr>
-            <th class="text-left px-3 py-2 font-semibold">ID</th>
-            <th class="text-left px-3 py-2 font-semibold">Tên</th>
-            <th class="text-left px-3 py-2 font-semibold">Ghi chú</th>
-            <th class="text-left px-3 py-2 font-semibold">Cập nhật</th>
-            <th class="text-right px-3 py-2 font-semibold">Thao tác</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
+      <!-- Nếu code chưa có, hiện khối thêm mới -->
+      <div id="regBox" class="hidden border-t pt-4 mt-2">
+        <h3 class="font-semibold mb-2">Chưa có mã? Thêm mới:</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-sm mb-1">Mã (code)</label>
+            <input id="regCode" class="w-full border rounded px-3 py-2">
+          </div>
+          <div>
+            <label class="block text-sm mb-1">Role</label>
+            <select id="regRole" class="w-full border rounded px-3 py-2">
+              <option value="teacher">teacher</option>
+              <option value="manager">manager</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm mb-1">Email</label>
+            <input id="regEmail" class="w-full border rounded px-3 py-2">
+          </div>
+          <div class="md:col-span-3">
+            <label class="block text-sm mb-1">Tên hiển thị</label>
+            <input id="regDisplayName" class="w-full border rounded px-3 py-2">
+          </div>
+        </div>
+        <div class="flex items-center gap-3 mt-3">
+          <button id="btnAddCode" class="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700">Thêm mã</button>
+          <span id="regMsg" class="text-sm"></span>
+        </div>
+      </div>
 
-    <footer class="mt-8 text-xs text-gray-500">
-      * Nếu bị chặn CORS khi gọi trực tiếp, hãy đặt một proxy server nhỏ (Next.js API) để gọi GAS server-side.
-    </footer>
+      <div id="meBox" class="hidden text-sm text-gray-700">
+        <div class="mt-2">Đã đăng nhập: <span id="meInfo" class="font-medium"></span></div>
+        <button id="btnLogout" class="mt-2 border px-3 py-1 rounded hover:bg-gray-50">Đăng xuất</button>
+      </div>
+    </section>
+
+    <!-- CREATE RECORD (chỉ hiện khi đã login) -->
+    <section id="createBox" class="hidden space-y-3 border rounded-lg p-4">
+      <h2 class="text-xl font-semibold">Thêm bản ghi lớp</h2>
+      <form id="createForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm mb-1">Class Code <span class="text-red-500">*</span></label>
+          <input id="classCode" class="w-full border rounded px-3 py-2" placeholder="TEA-1A2B" required>
+        </div>
+        <div>
+          <label class="block text-sm mb-1">Student Name <span class="text-red-500">*</span></label>
+          <input id="studentName" class="w-full border rounded px-3 py-2" placeholder="Nguyễn Văn A" required>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm mb-1">Note</label>
+          <input id="note" class="w-full border rounded px-3 py-2" placeholder="Ghi chú...">
+        </div>
+        <div class="md:col-span-2 flex items-center gap-3">
+          <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Lưu</button>
+          <span id="msgCreate" class="text-sm"></span>
+        </div>
+      </form>
+    </section>
+
+    <!-- LIST -->
+    <section class="space-y-3 border rounded-lg p-4">
+      <div class="flex items-center gap-3">
+        <h2 class="text-xl font-semibold">Danh sách</h2>
+        <input id="filterClassCode" class="border rounded px-3 py-2" placeholder="Lọc theo classCode (vd TEA-1A2B)">
+        <button id="reloadBtn" class="bg-gray-800 text-white px-3 py-2 rounded hover:bg-black">Tải lại</button>
+      </div>
+      <div class="overflow-auto">
+        <table class="min-w-full border">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="border px-3 py-2 text-left">timestamp</th>
+              <th class="border px-3 py-2 text-left">teacherEmail</th>
+              <th class="border px-3 py-2 text-left">classCode</th>
+              <th class="border px-3 py-2 text-left">studentName</th>
+              <th class="border px-3 py-2 text-left">note</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
   </div>
+
+  <script>
+    // -------- helpers --------
+    function setToken(t){ localStorage.setItem('sessionToken', t||''); }
+    function getToken(){ return localStorage.getItem('sessionToken') || ''; }
+    function fmtDate(v){ try{ return new Date(v).toLocaleString(); }catch(e){ return v||''; } }
+
+    async function apiPost(body){
+      const res = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      return res.json();
+    }
+    async function apiGet(params){
+      const url = new URL(GAS_URL);
+      if (params) Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
+      const res = await fetch(url.toString());
+      return res.json();
+    }
+
+    // -------- auth flows --------
+    async function loginWithCode(code, email){
+      return apiPost({ action:'loginWithCode', code, email });
+    }
+    async function verifyToken(token){
+      // dùng GET để dễ test nhanh
+      return apiGet({ action:'verifyToken', token });
+    }
+    async function addCode(code, role, email, displayName){
+      return apiPost({ action:'addCode', code, role, email, displayName });
+    }
+
+    // -------- data flows --------
+    async function createRecord(token, { classCode, studentName, note }){
+      return apiPost({ action:'createRecord', token, classCode, studentName, note });
+    }
+    async function fetchList(classCode){
+      return apiGet(classCode ? { classCode } : null);
+    }
+    function renderRows(rows){
+      const tb = document.getElementById('tbody'); tb.innerHTML = '';
+      for (const r of (rows||[])){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="border px-3 py-2">${fmtDate(r.timestamp)}</td>
+          <td class="border px-3 py-2">${r.teacherEmail||''}</td>
+          <td class="border px-3 py-2">${r.classCode||''}</td>
+          <td class="border px-3 py-2">${r.studentName||''}</td>
+          <td class="border px-3 py-2">${r.note||''}</td>
+        `;
+        tb.appendChild(tr);
+      }
+    }
+
+    // -------- UI bind --------
+    const authMsg = document.getElementById('authMsg');
+    const regBox  = document.getElementById('regBox');
+    const regMsg  = document.getElementById('regMsg');
+    const meBox   = document.getElementById('meBox');
+    const meInfo  = document.getElementById('meInfo');
+    const createBox = document.getElementById('createBox');
+
+    function showLoggedIn(payload){
+      meBox.classList.remove('hidden');
+      createBox.classList.remove('hidden');
+      const s = `${payload.displayName||payload.email||payload.code||''} • role: ${payload.role||''}`;
+      meInfo.textContent = s;
+      authMsg.textContent = '✅ Đăng nhập thành công';
+      regBox.classList.add('hidden');
+    }
+    function showLoggedOut(){
+      meBox.classList.add('hidden');
+      createBox.classList.add('hidden');
+      authMsg.textContent = '';
+      regBox.classList.add('hidden');
+    }
+
+    document.getElementById('btnLogin').addEventListener('click', async ()=>{
+      const code = document.getElementById('codeInput').value.trim();
+      const email = document.getElementById('emailInput').value.trim();
+      authMsg.textContent = 'Đang đăng nhập...';
+      try{
+        const r = await loginWithCode(code, email);
+        if (r.success){
+          setToken(r.token);
+          showLoggedIn(r.payload);
+        } else if (r.notFound) {
+          authMsg.textContent = '❗ Code chưa tồn tại. Bạn có thể thêm mới ở bên dưới.';
+          // prefill reg inputs
+          document.getElementById('regCode').value = code;
+          document.getElementById('regEmail').value = email;
+          document.getElementById('regDisplayName').value = document.getElementById('displayNameInput').value.trim();
+          regBox.classList.remove('hidden');
+        } else {
+          authMsg.textContent = '❌ ' + (r.message||'Đăng nhập thất bại');
+        }
+      }catch(err){
+        authMsg.textContent = '❌ ' + err.message;
+      }
+    });
+
+    document.getElementById('btnAddCode').addEventListener('click', async ()=>{
+      const code = document.getElementById('regCode').value.trim();
+      const role = document.getElementById('regRole').value;
+      const email = document.getElementById('regEmail').value.trim();
+      const displayName = document.getElementById('regDisplayName').value.trim();
+      regMsg.textContent = 'Đang thêm mã...';
+      try{
+        const r = await addCode(code, role, email, displayName);
+        if (r.success){
+          regMsg.textContent = '✅ Đã thêm. Giờ bạn có thể bấm Đăng nhập.';
+        } else {
+          regMsg.textContent = '❌ ' + (r.message||'Không thêm được');
+        }
+      }catch(err){
+        regMsg.textContent = '❌ ' + err.message;
+      }
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', ()=>{
+      setToken('');
+      showLoggedOut();
+    });
+
+    document.getElementById('createForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const token = getToken();
+      const classCode = document.getElementById('classCode').value.trim();
+      const studentName = document.getElementById('studentName').value.trim();
+      const note = document.getElementById('note').value.trim();
+      const msg = document.getElementById('msgCreate');
+      msg.textContent = 'Đang lưu...';
+      try{
+        const r = await createRecord(token, { classCode, studentName, note });
+        if (r.success){
+          msg.textContent = '✅ Lưu thành công';
+          // refresh list theo filter
+          const filter = document.getElementById('filterClassCode').value.trim();
+          const data = await fetchList(filter);
+          renderRows(data.data||[]);
+        } else {
+          msg.textContent = '❌ ' + (r.message||'Lỗi không rõ');
+        }
+      }catch(err){
+        msg.textContent = '❌ ' + err.message;
+      }
+    });
+
+    document.getElementById('reloadBtn').addEventListener('click', async ()=>{
+      const filter = document.getElementById('filterClassCode').value.trim();
+      const data = await fetchList(filter);
+      renderRows(data.data||[]);
+    });
+
+    // -------- boot --------
+    (async ()=>{
+      // verify token nếu có
+      const token = getToken();
+      if (token){
+        try{
+          const r = await verifyToken(token);
+          if (r.success) showLoggedIn(r.payload); else showLoggedOut();
+        }catch{ showLoggedOut(); }
+      } else {
+        showLoggedOut();
+      }
+      // load list lần đầu
+      const data = await fetchList();
+      renderRows(data.data||[]);
+    })();
+  </script>
 </body>
 </html>
