@@ -1,104 +1,25 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Đăng Nhập</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sheets CRUD — Static + Tailwind</title>
+
+  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    body { font-family: 'Inter', sans-serif; }
-  </style>
-</head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center">
-  <div class="bg-white w-full max-w-md mx-4 p-8 rounded-2xl shadow-lg">
-    <div class="text-center mb-6">
-      <h1 class="text-3xl font-bold text-gray-800">Đăng Nhập</h1>
-      <p class="text-gray-500 mt-2">Nhập <b>mã người dùng</b> để tiếp tục.</p>
-    </div>
-
-    <!-- Alert -->
-    <div id="alert" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
-
-    <form id="loginForm" class="space-y-4">
-      <div>
-        <label for="userCode" class="block text-sm font-semibold text-gray-700 mb-2">Mã người dùng</label>
-        <input id="userCode" name="userCode" type="text" placeholder="VD: thuongtq"
-               class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-               required />
-      </div>
-
-      <button type="submit"
-              class="w-full bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition">
-        Đăng nhập
-      </button>
-    </form>
-
-    <div class="mt-6 text-center text-sm text-gray-500">
-      Quên mã? <a href="#" class="text-blue-600 hover:underline">Liên hệ quản trị viên</a>
-    </div>
-
-    <hr class="my-6" />
-  </div>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter','ui-sans-serif','system-ui'] }
+        }
+      }
+    }
+  </script>
+  <style> body { font-family: Inter, ui-sans-serif, system-ui; } </style>
 
   <script>
-    const DASHBOARD_TEACHER = "/teacher.html";
-    const DASHBOARD_MANAGER = "/manager.html";
+    // ==== ĐIỀN URL Web App GAS của bạn: ====
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxzBJYmqMVa75OzBrTOTQeRtoK9aPYevGQjvSkoXy9lzcmisEOd00Qi_2udemy-07WD/exec";
 
-    const $ = (s) => document.querySelector(s);
-
-    function showAlert(msg, type = "error") {
-      const el = $("#alert");
-      el.classList.remove("hidden", "bg-red-50", "text-red-700", "border-red-200", "bg-green-50", "text-green-700", "border-green-200");
-      if (type === "success") {
-        el.classList.add("bg-green-50", "text-green-700", "border", "border-green-200");
-      } else {
-        el.classList.add("bg-red-50", "text-red-700", "border", "border-red-200");
-      }
-      el.textContent = msg;
-    }
-
-    function hideAlert(){ $("#alert").classList.add("hidden"); }
-
-    function saveSession({ token, role, code, email, displayName }) {
-      const payload = { token, role, code, email, displayName, ts: Date.now() };
-      sessionStorage.setItem("session", JSON.stringify(payload));
-    }
-
-    function gotoDashboard(role) {
-      window.location.href = role === 'manager' ? DASHBOARD_MANAGER : DASHBOARD_TEACHER;
-    }
-
-    $("#loginForm").addEventListener('submit', async (e) => {
-      e.preventDefault();
-      hideAlert();
-      const code = String($("#userCode").value || '').trim();
-      if (!code) return showAlert('Vui lòng nhập mã người dùng.');
-      try {
-        const res = await fetch('/api/gas-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'loginWithCode', code })
-        });
-        if (!res.ok) throw new Error('Fetch failed ' + res.status);
-        const data = await res.json();
-        if (!data.success) return showAlert(data.message || 'Đăng nhập thất bại');
-        saveSession({ token: data.token, role: data.role, code, email: data.email, displayName: data.displayName });
-        showAlert('Đăng nhập thành công! Đang chuyển trang...', 'success');
-        setTimeout(() => gotoDashboard(data.role), 300);
-      } catch (err) {
-        console.error(err);
-        showAlert('Không thể kết nối máy chủ. Kiểm tra proxy và Apps Script.');
-      }
-    });
-
-    // Nếu đã đăng nhập thì chuyển luôn
-    (function auto() {
-      try {
-        const s = JSON.parse(sessionStorage.getItem('session') || 'null');
-        if (s && s.token && s.role) gotoDashboard(s.role);
-      } catch {}
-    })();
-  </script>
-</body>
-</html>
+    // ===== Helpers ====
