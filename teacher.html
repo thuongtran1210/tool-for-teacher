@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teacher Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+    <header class="bg-white border-b">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <h1 class="text-xl font-semibold">Teacher Dashboard</h1>
+            <div class="flex items-center gap-3">
+                <span id="userInfo" class="text-sm text-gray-600"></span>
+                <button id="btnLogout" class="px-3 py-1.5 rounded-md bg-gray-800 text-white text-sm">Đăng xuất</button>
+            </div>
+        </div>
+    </header>
+
+
+    <main class="max-w-4xl mx-auto p-4">
+        <div class="bg-white rounded-xl shadow-sm p-6 border">
+            <h2 class="text-lg font-semibold mb-2">Xin chào, <span id="name"></span></h2>
+            <p class="text-gray-600 mb-4">Bạn đang đăng nhập với vai trò <b>Teacher</b>.</p>
+            <div class="h-px bg-gray-200 my-4"></div>
+            <p class="text-sm text-gray-500">(Placeholder) Khu vực quản lý lớp, điểm, ghi chú…</p>
+        </div>
+    </main>
+
+
+    <script>
+        const ROLE_REQUIRED = 'teacher';
+        function getSession() { try { return JSON.parse(sessionStorage.getItem('session') || 'null') } catch { return null } }
+        function logout() { sessionStorage.removeItem('session'); window.location.href = '/index.html'; }
+
+
+        async function verify() {
+            const s = getSession();
+            if (!s || !s.token) return logout();
+            try {
+                const res = await fetch('/api/gas-proxy', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'verifyToken', token: s.token })
+                });
+                const data = await res.json();
+                if (!data.success) return logout();
+                if (data.role !== ROLE_REQUIRED) return (window.location.href = '/manager.html');
+                // render UI
+                document.getElementById('name').textContent = s.displayName || s.email || s.code;
+                document.getElementById('userInfo').textContent = `${s.displayName || s.code} • ${data.role}`;
+            } catch { logout(); }
+        }
+
+
+        document.getElementById('btnLogout').onclick = logout;
+        verify();
+    </script>
+</body>
+
+</html>
